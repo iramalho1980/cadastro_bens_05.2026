@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CONVERSOR | CADASTRO BENS - PATRIMONIO</title>
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --blur-amount: 15px;
+            --text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+            --neon-green: #39FF14;
+            --dark-orange: #FF8C00;
+            --mapped-red: #FF3131;
+            --transition: all 0.3s ease;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Open Sans', sans-serif; font-size: 11px; }
+
+        body {
+            min-height: 100vh;
+            background: linear-gradient(to right, #3d72b4, #525252);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-bottom: 100px;
+            transition: background 0.5s ease;
+            overflow-x: hidden;
+        }
+
+        header {
+            width: 95%; max-width: 1100px; margin: 15px 0; padding: 12px;
+            background: var(--glass-bg); backdrop-filter: blur(var(--blur-amount));
+            border: 1px solid var(--glass-border); border-radius: 10px;
+            text-align: center; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        header h1 { font-size: 1.2rem; font-weight: 600; letter-spacing: 1.5px; text-shadow: var(--text-shadow); }
+
+        main { width: 95%; max-width: 1100px; display: flex; flex-direction: column; gap: 12px; }
+
+        .card {
+            background: var(--glass-bg); backdrop-filter: blur(var(--blur-amount));
+            border: 1px solid var(--glass-border); border-radius: 8px;
+            overflow: hidden; transition: var(--transition);
+        }
+
+        .card-header {
+            padding: 10px 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .card-header h2 { font-size: 0.9rem; font-weight: 400; text-shadow: var(--text-shadow); }
+
+        .card-content { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; padding: 0 15px; }
+
+        .card.active .card-content { max-height: 2500px; padding: 15px; }
+
+        .card.active .chevron { transform: rotate(180deg); }
+
+        .grid-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+
+        .field-group { display: flex; flex-direction: column; gap: 4px; }
+
+        .field-group label { font-size: 10px; opacity: 0.8; text-shadow: var(--text-shadow); }
+
+        select, input {
+            background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border);
+            border-radius: 4px; padding: 5px 8px; color: white; outline: none; transition: 0.3s;
+        }
+
+        .req-field select, .req-field input { border: 1px solid var(--neon-green); box-shadow: 0 0 5px var(--neon-green); }
+        .fac-field select, .fac-field input { border: 1px solid var(--dark-orange); box-shadow: 0 0 5px var(--dark-orange); }
+
+        .field-group.is-mapped select, .field-group.is-mapped input {
+            border: 1px solid var(--mapped-red) !important;
+            box-shadow: 0 0 8px var(--mapped-red) !important;
+            background: rgba(255, 49, 49, 0.1) !important;
+        }
+
+        select option { background: #222; color: white; }
+
+        .table-container { overflow-x: auto; border-radius: 6px; background: rgba(0, 0, 0, 0.2); margin-top: 10px; }
+
+        table { width: 100%; border-collapse: collapse; min-width: 1200px; }
+
+        th, td { padding: 8px; text-align: left; border-bottom: 1px solid var(--glass-border); white-space: nowrap; }
+
+        th { background: rgba(255, 255, 255, 0.05); font-weight: 600; position: relative; }
+        .th-content { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .filter-icon { cursor: pointer; opacity: 0.3; transition: 0.2s; display: flex; align-items: center; }
+        .filter-icon:hover { opacity: 1; color: var(--neon-green); }
+        .filter-icon.active { opacity: 1; color: var(--neon-green); }
+        .filter-icon i { width: 12px; height: 12px; }
+
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 15px; }
+
+        .page-btn {
+            background: var(--glass-bg); border: 1px solid var(--glass-border);
+            color: white; padding: 5px 10px; border-radius: 4px; cursor: pointer;
+            display: flex; align-items: center; gap: 5px;
+        }
+
+        .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        .dock-container {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(25px);
+            border: 1px solid var(--glass-border); border-radius: 18px; padding: 8px 15px;
+            display: flex; gap: 15px; align-items: center; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); z-index: 1000;
+        }
+
+        .dock-item {
+            width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center;
+            justify-content: center; cursor: pointer; transition: var(--transition); position: relative;
+        }
+
+        .dock-item:hover { transform: translateY(-8px) scale(1.15); background: rgba(255, 255, 255, 0.15); }
+
+        .dock-item i { width: 20px; height: 20px; }
+
+        .dock-item span {
+            position: absolute; bottom: -22px; font-size: 9px; white-space: nowrap;
+            opacity: 0; transition: 0.3s;
+        }
+
+        .dock-item:hover span { opacity: 1; }
+
+        .overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(8px);
+            display: none; justify-content: center; align-items: center; z-index: 2000;
+        }
+
+        .popup {
+            background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border); border-radius: 12px; padding: 20px;
+            width: 90%; max-width: 380px; box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
+        }
+
+        .popup h3 { margin-bottom: 12px; font-size: 1.1rem; }
+
+        .popup-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 15px; }
+
+        .btn { padding: 6px 14px; border-radius: 5px; border: none; cursor: pointer; font-weight: 600; transition: 0.2s; }
+
+        .btn-primary { background: #007AFF; color: white; }
+        .btn-secondary { background: rgba(255, 255, 255, 0.1); color: white; }
+
+        .spinner {
+            width: 40px; height: 40px; border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top: 3px solid #007AFF; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .hidden { display: none; }
+        .flex-center { display: flex; align-items: center; gap: 8px; }
+
+        .table-controls { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+        .table-controls button { padding: 6px 12px; font-size: 11px; }
+        .table-controls input { flex: 1; min-width: 150px; }
+
+        tbody tr { transition: background-color 0.2s; }
+        tbody tr.selected { background-color: rgba(57, 255, 20, 0.15); }
+        tbody tr:hover { background-color: rgba(255, 255, 255, 0.05); }
+
+        .row-checkbox { cursor: pointer; width: 16px; height: 16px; }
+        .action-cell { display: flex; gap: 6px; }
+        .action-cell button { padding: 3px 8px; font-size: 10px; cursor: pointer; border: 1px solid var(--glass-border); background: rgba(255, 255, 255, 0.05); color: white; border-radius: 3px; transition: 0.2s; }
+        .action-cell button:hover { background: rgba(255, 255, 255, 0.15); }
+        .action-cell .btn-edit { border-color: var(--neon-green); }
+        .action-cell .btn-delete { border-color: var(--mapped-red); }
+
+        .filter-popup { max-width: 320px; max-height: 500px; }
+        .filter-search { width: 100%; margin-bottom: 10px; }
+        .filter-options { max-height: 300px; overflow-y: auto; margin-bottom: 10px; }
+        .filter-option { display: flex; align-items: center; gap: 8px; padding: 6px; cursor: pointer; }
+        .filter-option:hover { background: rgba(255, 255, 255, 0.05); }
+        .filter-option input[type="checkbox"] { cursor: pointer; }
+
+        .edit-modal { max-width: 600px; max-height: 80vh; overflow-y: auto; }
+        .edit-modal .field-group { margin-bottom: 12px; }
+        .edit-modal label { font-weight: 600; }
+        .edit-modal input, .edit-modal select { width: 100%; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>CONVERSOR | CADASTRO BENS - PATRIMONIO</h1>
+    </header>
+
+    <main>
+        <div class="card" id="card-obrigatorios">
+            <div class="card-header" onclick="toggleCard('card-obrigatorios')">
+                <h2>OBRIGATÓRIOS (Neon Verde)</h2>
+                <i data-lucide="chevron-down" class="chevron"></i>
+            </div>
+            <div class="card-content">
+                <div class="grid-fields" id="fields-obrigatorios"></div>
+            </div>
+        </div>
+
+        <div class="card" id="card-facultativos">
+            <div class="card-header" onclick="toggleCard('card-facultativos')">
+                <h2>FACULTATIVOS (Dark Orange)</h2>
+                <i data-lucide="chevron-down" class="chevron"></i>
+            </div>
+            <div class="card-content">
+                <div class="grid-fields" id="fields-facultativos"></div>
+            </div>
+        </div>
+
+        <div class="card" id="card-mapeados">
+            <div class="card-header" onclick="toggleCard('card-mapeados')">
+                <h2>DADOS MAPEADOS (10 por página)</h2>
+                <i data-lucide="chevron-down" class="chevron"></i>
+            </div>
+            <div class="card-content">
+                <div class="flex-center" style="justify-content: space-between;">
+                    <button class="btn btn-secondary" onclick="openBatchEdit()">Preenchimento em Lote</button>
+                    <span id="row-count">0 linhas carregadas</span>
+                </div>
+                <div class="table-controls">
+                    <button class="btn btn-secondary" onclick="editSelectedRows()" id="btn-edit-rows">Editar Selecionadas</button>
+                    <button class="btn btn-secondary" onclick="deleteSelectedRows()" id="btn-delete-rows">Excluir Selecionadas</button>
+                    <button class="btn btn-secondary" onclick="selectAllRows()">Selecionar Tudo</button>
+                    <button class="btn btn-secondary" onclick="deselectAllRows()">Desselecionar Tudo</button>
+                </div>
+                <div class="table-container">
+                    <table id="data-table">
+                        <thead><tr id="table-head"></tr></thead>
+                        <tbody id="table-body"></tbody>
+                    </table>
+                </div>
+                <div class="pagination">
+                    <button class="page-btn" id="prev-page" onclick="changePage(-1)">
+                        <i data-lucide="chevron-left"></i> Anterior
+                    </button>
+                    <span id="page-info">Página 1 de 1</span>
+                    <button class="page-btn" id="next-page" onclick="changePage(1)">
+                        Próxima <i data-lucide="chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div class="dock-container">
+        <div class="dock-item" onclick="triggerImport()">
+            <i data-lucide="file-up"></i>
+            <span>Importar Excel</span>
+        </div>
+        <div class="dock-item" onclick="validateData()">
+            <i data-lucide="check-circle"></i>
+            <span>Validar</span>
+        </div>
+        <div class="dock-item" onclick="openExportPopup()">
+            <i data-lucide="file-output"></i>
+            <span>Gerar TXT</span>
+        </div>
+        <div class="dock-item" onclick="openSkinPopup()">
+            <i data-lucide="palette"></i>
+            <span>Skins</span>
+        </div>
+    </div>
+
+    <input type="file" id="excel-input" class="hidden" accept=".xls,.xlsx,.xlsm">
+
+    <div id="overlay-company" class="overlay">
+        <div class="popup">
+            <h3>Código da Empresa</h3>
+            <p style="margin-bottom: 10px;">Informe o código da empresa para iniciar a importação:</p>
+            <input type="text" id="company-code-input" style="width: 100%" placeholder="Ex: 001">
+            <div class="popup-buttons">
+                <button class="btn btn-primary" onclick="confirmCompanyCode()">Iniciar Importação</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="overlay-skin" class="overlay">
+        <div class="popup">
+            <h3>Selecionar Skin</h3>
+            <div class="skin-options" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div class="skin-btn" style="height: 35px; border-radius: 6px; cursor: pointer; border: 2px solid transparent; background: linear-gradient(to right, #3d72b4, #525252);" onclick="setSkin(0)"></div>
+                <div class="skin-btn" style="height: 35px; border-radius: 6px; cursor: pointer; border: 2px solid transparent; background: linear-gradient(to right, #19547b, #ffd89b);" onclick="setSkin(1)"></div>
+                <div class="skin-btn" style="height: 35px; border-radius: 6px; cursor: pointer; border: 2px solid transparent; background: linear-gradient(to right, #99f2c8, #1f4037);" onclick="setSkin(2)"></div>
+                <div class="skin-btn" style="height: 35px; border-radius: 6px; cursor: pointer; border: 2px solid transparent; background: linear-gradient(to right, #FD746C, #2C3E50);" onclick="setSkin(3)"></div>
+            </div>
+            <div class="popup-buttons">
+                <button class="btn btn-secondary" onclick="closePopups()">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="overlay-export" class="overlay">
+        <div class="popup">
+            <h3>Gerar TXT</h3>
+            <p style="margin-bottom: 10px;">Selecione o separador:</p>
+            <select id="separator-select" style="width: 100%">
+                <option value=";">Ponto e Vírgula (;)</option>
+                <option value=",">Vírgula (,)</option>
+                <option value="|">Pipe (|)</option>
+                <option value="&#9;">TAB</option>
+            </select>
+            <div class="popup-buttons">
+                <button class="btn btn-secondary" onclick="closePopups()">Cancelar</button>
+                <button class="btn btn-primary" onclick="generateTXT()">Gerar e Baixar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="overlay-loader" class="overlay" style="flex-direction: column;">
+        <div class="spinner"></div>
+        <h3 id="loader-percent">0%</h3>
+        <p id="loader-text">Processando...</p>
+    </div>
+
+    <div id="overlay-batch" class="overlay">
+        <div class="popup">
+            <h3>Preenchimento em Lote</h3>
+            <div class="field-group" style="margin-bottom: 10px;">
+                <label>Coluna:</label>
+                <select id="batch-column-select"></select>
+            </div>
+            <div class="field-group" style="margin-bottom: 10px;">
+                <label>Valor:</label>
+                <input type="text" id="batch-value-input">
+            </div>
+            <div class="field-group" style="margin-bottom: 10px;">
+                <label>Aplicar em:</label>
+                <select id="batch-target-select">
+                    <option value="all">Todas as linhas</option>
+                    <option value="empty">Apenas vazias</option>
+                </select>
+            </div>
+            <div class="popup-buttons">
+                <button class="btn btn-secondary" onclick="closePopups()">Cancelar</button>
+                <button class="btn btn-primary" onclick="applyBatchEdit()">Aplicar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="overlay-validation" class="overlay">
+        <div class="popup" style="max-width: 500px;">
+            <h3>Validação de Dados</h3>
+            <div id="validation-results" style="max-height: 300px; overflow-y: auto; font-size: 10px;"></div>
+            <div class="popup-buttons">
+                <button class="btn btn-primary" onclick="closePopups()">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="overlay-filter" class="overlay">
+        <div class="popup filter-popup">
+            <h3 id="filter-popup-title">Filtrar</h3>
+            <input type="hidden" id="filter-field-select">
+            <input type="text" id="filter-search-input" class="filter-search" placeholder="Pesquisar..." onkeyup="updateFilterOptions()">
+            <div class="filter-options" id="filter-options-container"></div>
+            <div class="popup-buttons">
+                <button class="btn btn-secondary" onclick="clearFilters()">Limpar Filtros</button>
+                <button class="btn btn-secondary" onclick="closePopups()">Cancelar</button>
+                <button class="btn btn-primary" onclick="applyFilters()">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="overlay-edit" class="overlay">
+        <div class="popup edit-modal">
+            <h3>Editar Linha</h3>
+            <div id="edit-fields-container"></div>
+            <div class="popup-buttons">
+                <button class="btn btn-secondary" onclick="closePopups()">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveEditedRow()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        const fields = [
+            { id: 'empresa', label: 'Código da Empresa', req: true, aliases: ['empresa', 'cod_empresa', 'cod empresa', 'codigo empresa'] },
+            { id: 'cod_bem', label: 'Cód. Bem', req: true, aliases: ['cod_bem', 'codigo_bem', 'cod bem', 'codigo bem', 'patrimonio', 'id_bem'] },
+            { id: 'identificador', label: 'Identificador', req: false, aliases: ['identificador', 'id'] },
+            { id: 'nome_bem', label: 'Nome do Bem', req: true, aliases: ['nome', 'nome_bem', 'descricao', 'descrição', 'bem'] },
+            { id: 'data_aq', label: 'Data Aquisição', req: true, isDate: true, aliases: ['data_aq', 'dt_aq'] },
+            { id: 'data_baixa', label: 'Data da Baixa', req: false, isDate: true, aliases: ['data_baixa', 'dt_baixa'] },
+            { id: 'conta_pat', label: 'Conta Patrimonial', req: true, type: 'combo', options: ["1 - VEICULOS", "2 - MAQUINAS E EQUIPAMENTOS", "3 - MOVEIS E UTENSILIOS", "4 - EDIFICIOS", "5 - TERRENOS", "6 - CONSTRUÇÕES", "7 - FERRAMENTAS E ACESSORIOS", "8 - COMPUTADORES E ACESSORIOS", "9 - INSTALACOES", "10 - BENF. IMOVEIS DE TERCEIROS", "11 - SOFTWARES", "12 - EMBARCAÇÕES", "13 - AERONAVES E APARELHOS ESPACIAIS"], aliases: ['conta', 'conta_pat', 'conta_patrimonial'] },
+            { id: 'cc', label: 'Centro de Custo', req: false, default: '1', aliases: ['cc', 'centro_custo', 'centro de custo'] },
+            { id: 'historico', label: 'Histórico', req: false, aliases: ['historico', 'histórico'] },
+            { id: 'tipo', label: 'Tipo', req: false, default: 'B', aliases: ['tipo'] },
+            { id: 'classificacao', label: 'Classificação', req: false, default: 'I', aliases: ['classificacao', 'classificação'] },
+            { id: 'vinculado', label: 'Vinculado a', req: false, aliases: ['vinculado'] },
+            { id: 'oriundo', label: 'Oriundo de Ativo Circulante', req: false, aliases: ['oriundo'] },
+            { id: 'funcao', label: 'Função', req: false, default: 'Ativo Imobilizado', aliases: ['funcao', 'função'] },
+            { id: 'val_aq', label: 'Valor Aquisição', req: true, isValue: true, aliases: ['valor', 'valor_aq', 'valor_aquisicao', 'valor aquisição', 'valor aquisicao', 'vl_aq'] },
+            { id: 'aliq_icms', label: 'Aliq. ICMS', req: false, isValue: true, aliases: ['aliq_icms', 'aliquota_icms'] },
+            { id: 'val_icms', label: 'Valor ICMS', req: false, isValue: true, aliases: ['valor_icms', 'vl_icms'] },
+            { id: 'val_icms_st', label: 'Valor ICMS ST', req: false, isValue: true, aliases: ['valor_icms_st', 'vl_icms_st'] },
+            { id: 'val_icms_difal', label: 'Valor ICMS DIFAL', req: false, isValue: true, aliases: ['valor_icms_difal', 'vl_icms_difal'] },
+            { id: 'val_icms_frete', label: 'Valor ICMS Frete', req: false, isValue: true, aliases: ['valor_icms_frete', 'vl_icms_frete'] },
+            { id: 'total_icms', label: 'Total Crédito ICMS', req: false, isValue: true, aliases: ['total_icms'] },
+            { id: 'aliq_pis', label: 'Aliq PIS', req: false, isValue: true, aliases: ['aliq_pis'] },
+            { id: 'val_pis', label: 'Val. Cred. PIS', req: false, isValue: true, aliases: ['valor_pis', 'vl_pis'] },
+            { id: 'aliq_cofins', label: 'Aliq. COFINS', req: false, isValue: true, aliases: ['aliq_cofins'] },
+            { id: 'val_cofins', label: 'Valor Cred. COFINS', req: false, isValue: true, aliases: ['valor_cofins', 'vl_cofins'] },
+            { id: 'val_orig', label: 'Valor Original', req: true, isValue: true, aliases: ['valor_original', 'vl_original'] },
+            { id: 'corr_mon', label: 'Correção Monetária Acumulada', req: false, isValue: true, aliases: ['correcao', 'correção'] },
+            { id: 'val_res', label: 'Valor Residual', req: false, isValue: true, aliases: ['valor_residual', 'vl_residual'] },
+            { id: 'base_dep', label: 'Base de Cálculo Depreciação', req: false, isValue: true, aliases: ['base_dep', 'base_depreciacao'] },
+            { id: 'calc_icms_sn', label: 'Calcular Crédito ICMS (S/N)', req: false, aliases: ['calc_icms'] },
+            { id: 'calc_pis_sn', label: 'Calcular Crédito PIS/COFINS (S/N)', req: false, aliases: ['calc_pis'] },
+            { id: 'depreciar_sn', label: 'Depreciar Bem (S/N)', req: false, default: 'S', aliases: ['depreciar'] },
+            { id: 'fisc_100', label: 'Fiscal - 100% no mês', req: false, aliases: ['fisc_100'] },
+            { id: 'fisc_ini', label: 'Fiscal - Data Início', req: false, isDate: true, aliases: ['fisc_ini', 'data_ini_fisc'] },
+            { id: 'fisc_acum_sn', label: 'Fiscal - Inf. Depr. Acum (S/N)', req: true, default: 'S', aliases: ['fisc_acum_sn'] },
+            { id: 'fisc_acum_data', label: 'Fiscal - Depr. Acum Até (Data)', req: true, isDate: true, aliases: ['fisc_acum_data'] },
+            { id: 'fisc_acum_val', label: 'Fiscal - Valor Depr. Acum', req: true, isValue: true, aliases: ['fisc_acum_val'] },
+            { id: 'fisc_taxa', label: 'Fiscal - Taxa Alternativa', req: false, default: '0', aliases: ['fisc_taxa'] },
+            { id: 'soc_ini', label: 'Societário - Data Início', req: false, isDate: true, aliases: ['soc_ini'] },
+            { id: 'soc_acum_sn', label: 'Societário - Inf. Depr. Acum', req: false, aliases: ['soc_acum_sn'] },
+            { id: 'soc_acum_data', label: 'Societário - Depr. Acum Até', req: false, isDate: true, aliases: ['soc_acum_data'] },
+            { id: 'soc_acum_val', label: 'Societário - Valor Depr. Acum', req: false, isValue: true, aliases: ['soc_acum_val'] },
+            { id: 'soc_taxa', label: 'Societário - Taxa Inicial', req: false, aliases: ['soc_taxa'] },
+            { id: 'doc_num', label: 'Doc - Número', req: false, aliases: ['numero', 'num_doc', 'nota', 'nfe'] },
+            { id: 'doc_serie', label: 'Doc - Série', req: false, aliases: ['serie', 'série'] },
+            { id: 'doc_emissao', label: 'Doc - Data Emissão', req: false, isDate: true, aliases: ['data_emissao', 'dt_emissao'] },
+            { id: 'doc_especie', label: 'Doc - Espécie', req: false, aliases: ['especie', 'espécie'] },
+            { id: 'doc_chave', label: 'Doc - Chave NFe', req: false, aliases: ['chave', 'chave_nfe'] },
+            { id: 'doc_forn', label: 'Doc - Fornecedor', req: false, aliases: ['fornecedor', 'forn'] },
+            { id: 'doc_emit', label: 'Doc - Emitente', req: false, aliases: ['emitente'] },
+            { id: 'doc_prod', label: 'Doc - Produto', req: false, aliases: ['produto'] },
+            { id: 'doc_seq', label: 'Doc - Sequencial Item', req: false, aliases: ['sequencial', 'item'] },
+            { id: 'aprop_cred', label: 'Apropriar Crédito Resultante', req: false, aliases: ['aprop_cred'] },
+            { id: 'cred_icms_carga', label: 'Crédito ICMS Pró Cargas', req: false, aliases: ['icms_carga'] },
+            { id: 'prod_adq_est', label: 'PRODUZIDO ADQUIRIDO ESTADO', req: false, aliases: ['origem_estado'] },
+            { id: 'util_cred_ini', label: 'Utilizar Crédito Início Ativ.', req: false, aliases: ['util_cred'] },
+            { id: 'mes_ini_ativ', label: 'Mês Início Atividades', req: false, aliases: ['mes_ini'] },
+            { id: 'recolher_icms', label: 'Recolher Débito ICMS', req: false, aliases: ['recolher_icms'] },
+            { id: 'pc_depr_sn', label: 'PIS/COFINS - Base Depr (S/N)', req: false, aliases: ['pc_depr'] },
+            { id: 'pc_aq_sn', label: 'PIS/COFINS - Base Aq (S/N)', req: false, aliases: ['pc_aq'] },
+            { id: 'pc_ini', label: 'PIS/COFINS - Início Cálculo', req: false, aliases: ['pc_ini'] },
+            { id: 'pc_origem', label: 'PIS/COFINS - Origem Bem', req: false, aliases: ['pc_origem'] },
+            { id: 'pc_base_cred', label: 'PIS/COFINS - Base Crédito', req: false, isValue: true, aliases: ['pc_base_cred'] },
+            { id: 'pc_especie', label: 'PIS/COFINS - Espécie', req: false, aliases: ['pc_especie'] },
+            { id: 'pc_tipo', label: 'PIS/COFINS - Tipo Utilizado', req: false, aliases: ['pc_tipo'] },
+            { id: 'pc_base_calc', label: 'PIS/COFINS - Base Cálculo', req: false, isValue: true, aliases: ['pc_base_calc'] },
+            { id: 'pc_per_calc', label: 'PIS/COFINS - Período Cálculo', req: false, aliases: ['pc_per'] },
+            { id: 'pc_cst', label: 'PIS/COFINS - CST', req: false, aliases: ['pc_cst'] },
+            { id: 'pc_vinc', label: 'PIS/COFINS - Vínculo Crédito', req: false, aliases: ['pc_vinc'] },
+            { id: 'pc_desc', label: 'PIS/COFINS - Desc. Compl.', req: false, aliases: ['pc_desc'] },
+            { id: 'pc_proc', label: 'PIS/COFINS - Processo Ref.', req: false, aliases: ['pc_proc'] },
+            { id: 'pc_ident', label: 'PIS/COFINS - Identificação', req: false, aliases: ['pc_ident'] },
+            { id: 'pc_orig', label: 'PIS/COFINS - Origem', req: false, aliases: ['pc_orig'] },
+            { id: 'pc_secao', label: 'PIS/COFINS - Seção Jud.', req: false, aliases: ['pc_secao'] },
+            { id: 'pc_vara', label: 'PIS/COFINS - Vara', req: false, aliases: ['pc_vara'] },
+            { id: 'pc_nat', label: 'PIS/COFINS - Natureza Ação', req: false, aliases: ['pc_nat'] },
+            { id: 'pc_sentenca', label: 'PIS/COFINS - Data Sentença', req: false, isDate: true, aliases: ['pc_sentenca'] },
+            { id: 'pc_proc_desc', label: 'PIS/COFINS - Desc. Processo', req: false, aliases: ['pc_proc_desc'] },
+            { id: 'data_cad', label: 'Data Cadastro Bem', req: true, isDate: true, aliases: ['data_cad', 'dt_cad'] },
+            { id: 'qtd', label: 'Quantidade (BEM)', req: true, isValue: true, aliases: ['qtd', 'quantidade'] },
+            { id: 'origem_reg', label: 'Origem do Registro', req: false, aliases: ['origem_reg'] }
+        ];
+
+        let excelData = [];
+        let mappedData = [];
+        let excelColumns = [];
+        let currentPage = 1;
+        const rowsPerPage = 10;
+        let pendingFile = null;
+        let selectedRows = new Set();
+        let activeFilters = {};
+        let editingRowIndex = null;
+
+        function initFields() {
+            const reqContainer = document.getElementById('fields-obrigatorios');
+            const facContainer = document.getElementById('fields-facultativos');
+            const batchSelect = document.getElementById('batch-column-select');
+            const filterSelect = document.getElementById('filter-field-select');
+            fields.forEach(f => {
+                const div = document.createElement('div');
+                div.id = `group-${f.id}`;
+                div.className = `field-group ${f.req ? 'req-field' : 'fac-field'}`;
+                div.innerHTML = `<label>${f.label} ${f.req ? '*' : ''}</label><select id="map-${f.id}" onchange="updateMapping('${f.id}')"><option value="">-- Selecione --</option></select>`;
+                if (f.req) reqContainer.appendChild(div); else facContainer.appendChild(div);
+                const opt = document.createElement('option'); opt.value = f.id; opt.textContent = f.label; batchSelect.appendChild(opt);
+                const fopt = document.createElement('option'); fopt.value = f.id; fopt.textContent = f.label; filterSelect.appendChild(fopt);
+            });
+        }
+
+        function toggleCard(id) { document.getElementById(id).classList.toggle('active'); }
+        function closePopups() { document.querySelectorAll('.overlay').forEach(o => o.style.display = 'none'); }
+        function triggerImport() { document.getElementById('excel-input').click(); }
+        function openSkinPopup() { document.getElementById('overlay-skin').style.display = 'flex'; }
+        function openExportPopup() { if (mappedData.length === 0) return alert('Importe dados primeiro!'); document.getElementById('overlay-export').style.display = 'flex'; }
+        function openBatchEdit() { if (mappedData.length === 0) return alert('Importe dados primeiro!'); document.getElementById('overlay-batch').style.display = 'flex'; }
+        function openFilterPopup(fieldId, label) { 
+            if (mappedData.length === 0) return alert('Importe dados primeiro!'); 
+            document.getElementById('filter-field-select').value = fieldId;
+            document.getElementById('filter-popup-title').textContent = `Filtrar: ${label}`;
+            document.getElementById('filter-search-input').value = '';
+            document.getElementById('overlay-filter').style.display = 'flex'; 
+            updateFilterOptions(); 
+        }
+
+        function formatDate(val) {
+            if (!val) return '';
+            let date;
+            if (typeof val === 'number') {
+                try {
+                    date = XLSX.SSF.parse_date_code(val);
+                    return `${String(date.d).padStart(2, '0')}/${String(date.m).padStart(2, '0')}/${date.y}`;
+                } catch(e) { return val; }
+            }
+            const d = new Date(val);
+            if (!isNaN(d.getTime())) return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+            return val;
+        }
+
+        function formatValue(val) {
+            if (val === undefined || val === null || val === '') return '';
+            let strVal = val.toString().replace(',', '.');
+            let num = parseFloat(strVal);
+            if (isNaN(num)) return val;
+            return num.toString().replace('.', ',');
+        }
+
+        document.getElementById('excel-input').addEventListener('change', function(e) {
+            pendingFile = e.target.files[0];
+            if (pendingFile) document.getElementById('overlay-company').style.display = 'flex';
+        });
+
+        function confirmCompanyCode() {
+            const companyCode = document.getElementById('company-code-input').value;
+            if (!companyCode) return alert('Informe o código da empresa!');
+            closePopups();
+            showLoader(0, 'Lendo arquivo...');
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                excelData = XLSX.utils.sheet_to_json(firstSheet);
+                excelColumns = Object.keys(excelData[0] || {});
+                updateSelects();
+                
+                fields.forEach(f => {
+                    const select = document.getElementById(`map-${f.id}`);
+                    const match = excelColumns.find(col => {
+                        const c = col.toLowerCase().trim();
+                        return f.aliases.some(a => c === a || c.includes(a));
+                    });
+                    if (match) {
+                        select.value = match;
+                        document.getElementById(`group-${f.id}`).classList.add('is-mapped');
+                    }
+                });
+
+                document.getElementById('group-empresa').classList.add('is-mapped');
+
+                mappedData = excelData.map(row => {
+                    const newRow = {};
+                    fields.forEach(f => { newRow[f.id] = f.default || ''; });
+                    newRow['empresa'] = companyCode;
+                    return newRow;
+                });
+                
+                selectedRows.clear();
+                activeFilters = {};
+                originalMappedData = [];
+                updateMapping();
+                currentPage = 1;
+                renderTable();
+                showLoader(100, 'Importado!');
+                setTimeout(closePopups, 800);
+                toggleCard('card-mapeados');
+            };
+            reader.readAsArrayBuffer(pendingFile);
+        }
+
+        function updateSelects() {
+            fields.forEach(f => {
+                const select = document.getElementById(`map-${f.id}`);
+                select.innerHTML = '<option value="">-- Selecione --</option>';
+                excelColumns.forEach(col => {
+                    const opt = document.createElement('option'); opt.value = col; opt.textContent = col; select.appendChild(opt);
+                });
+            });
+        }
+
+        function updateMapping(fieldId) {
+            if (excelData.length === 0) return;
+            if (fieldId) {
+                const select = document.getElementById(`map-${fieldId}`);
+                const group = document.getElementById(`group-${fieldId}`);
+                if (select.value) group.classList.add('is-mapped');
+                else group.classList.remove('is-mapped');
+            }
+            const companyCode = document.getElementById('company-code-input').value;
+            mappedData = excelData.map((row, idx) => {
+                const newRow = { ...mappedData[idx] };
+                fields.forEach(f => {
+                    const col = document.getElementById(`map-${f.id}`).value;
+                    if (col) {
+                        let val = row[col];
+                        if (f.isDate) val = formatDate(val);
+                        if (f.isValue) val = formatValue(val);
+                        newRow[f.id] = val;
+                    }
+                });
+                
+                if (companyCode) newRow['empresa'] = companyCode;
+
+                if (newRow['cod_bem']) newRow['identificador'] = newRow['cod_bem'];
+                if (newRow['nome_bem']) newRow['historico'] = `Ativo Imobilizado - ${newRow['nome_bem']}`;
+                if (newRow['val_aq']) newRow['val_orig'] = newRow['val_aq'];
+                if (newRow['data_aq']) newRow['fisc_ini'] = newRow['data_aq'];
+                return newRow;
+            });
+            renderTable();
+        }
+
+        function renderTable() {
+            const head = document.getElementById('table-head');
+            const body = document.getElementById('table-body');
+            
+            let headHTML = '<th style="width: 30px;"><input type="checkbox" id="select-all-checkbox" onchange="toggleSelectAll(this.checked)"></th>';
+            fields.forEach(f => {
+                const isActive = activeFilters[f.id] && activeFilters[f.id].length > 0;
+                headHTML += `<th>
+                    <div class="th-content">
+                        <span>${f.label}</span>
+                        <div class="filter-icon ${isActive ? 'active' : ''}" onclick="openFilterPopup('${f.id}', '${f.label}')">
+                            <i data-lucide="filter"></i>
+                        </div>
+                    </div>
+                </th>`;
+            });
+            headHTML += '<th style="width: 100px;">Ações</th>';
+            head.innerHTML = headHTML;
+
+            const start = (currentPage - 1) * rowsPerPage;
+            const end = start + rowsPerPage;
+            const pageData = mappedData.slice(start, end);
+            body.innerHTML = pageData.map((row, idx) => {
+                const globalIdx = start + idx;
+                const isSelected = selectedRows.has(globalIdx);
+                return `<tr class="${isSelected ? 'selected' : ''}" id="row-${globalIdx}">
+                    <td><input type="checkbox" class="row-checkbox" ${isSelected ? 'checked' : ''} onchange="toggleRowSelection(${globalIdx}, this.checked)"></td>
+                    ${fields.map(f => `<td>${row[f.id] || ''}</td>`).join('')}
+                    <td class="action-cell">
+                        <button class="btn-edit" onclick="openEditRow(${globalIdx})" title="Editar">Editar</button>
+                        <button class="btn-delete" onclick="deleteRow(${globalIdx})" title="Excluir">Excluir</button>
+                    </td>
+                </tr>`;
+            }).join('');
+            const totalPages = Math.ceil(mappedData.length / rowsPerPage) || 1;
+            document.getElementById('page-info').textContent = `Página ${currentPage} de ${totalPages}`;
+            document.getElementById('prev-page').disabled = currentPage === 1;
+            document.getElementById('next-page').disabled = currentPage === totalPages;
+            document.getElementById('row-count').textContent = `${mappedData.length} linhas carregadas`;
+            lucide.createIcons();
+        }
+
+        function changePage(dir) { currentPage += dir; renderTable(); }
+
+        function toggleRowSelection(idx, checked) {
+            if (checked) selectedRows.add(idx);
+            else selectedRows.delete(idx);
+            const row = document.getElementById(`row-${idx}`);
+            if (row) row.classList.toggle('selected', checked);
+        }
+
+        function toggleSelectAll(checked) {
+            selectedRows.clear();
+            if (checked) {
+                for (let i = 0; i < mappedData.length; i++) selectedRows.add(i);
+            }
+            renderTable();
+        }
+
+        function selectAllRows() { toggleSelectAll(true); }
+        function deselectAllRows() { toggleSelectAll(false); }
+
+        function deleteRow(idx) {
+            if (confirm('Tem certeza que deseja excluir esta linha?')) {
+                mappedData.splice(idx, 1);
+                selectedRows.delete(idx);
+                const totalPages = Math.ceil(mappedData.length / rowsPerPage) || 1;
+                if (currentPage > totalPages) currentPage = totalPages;
+                renderTable();
+            }
+        }
+
+        function deleteSelectedRows() {
+            if (selectedRows.size === 0) return alert('Selecione linhas para excluir!');
+            if (!confirm(`Tem certeza que deseja excluir ${selectedRows.size} linha(s)?`)) return;
+            const indicesToDelete = Array.from(selectedRows).sort((a, b) => b - a);
+            indicesToDelete.forEach(idx => mappedData.splice(idx, 1));
+            selectedRows.clear();
+            const totalPages = Math.ceil(mappedData.length / rowsPerPage) || 1;
+            if (currentPage > totalPages) currentPage = totalPages;
+            renderTable();
+        }
+
+        function openEditRow(idx) {
+            editingRowIndex = idx;
+            const row = mappedData[idx];
+            const container = document.getElementById('edit-fields-container');
+            container.innerHTML = fields.map(f => {
+                const val = row[f.id] || '';
+                if (f.type === 'combo') {
+                    return `<div class="field-group"><label>${f.label}</label><select id="edit-${f.id}">${f.options.map(opt => `<option value="${opt}" ${opt === val ? 'selected' : ''}>${opt}</option>`).join('')}</select></div>`;
+                }
+                return `<div class="field-group"><label>${f.label}</label><input type="text" id="edit-${f.id}" value="${val}"></div>`;
+            }).join('');
+            document.getElementById('overlay-edit').style.display = 'flex';
+        }
+
+        function saveEditedRow() {
+            if (editingRowIndex === null) return;
+            const row = mappedData[editingRowIndex];
+            fields.forEach(f => {
+                const input = document.getElementById(`edit-${f.id}`);
+                if (input) row[f.id] = input.value;
+            });
+            renderTable();
+            closePopups();
+        }
+
+        function editSelectedRows() {
+            if (selectedRows.size === 0) return alert('Selecione linhas para editar!');
+            if (selectedRows.size > 1) return alert('Edite uma linha por vez!');
+            const idx = Array.from(selectedRows)[0];
+            openEditRow(idx);
+        }
+
+        function updateFilterOptions() {
+            const fieldId = document.getElementById('filter-field-select').value;
+            const searchTerm = document.getElementById('filter-search-input').value.toLowerCase();
+            if (!fieldId) return;
+            
+            const uniqueValues = [...new Set(mappedData.map(row => row[fieldId] || ''))].filter(v => v.toString().toLowerCase().includes(searchTerm));
+            const container = document.getElementById('filter-options-container');
+            container.innerHTML = uniqueValues.map(val => {
+                const isChecked = activeFilters[fieldId] && activeFilters[fieldId].includes(val);
+                return `<div class="filter-option"><input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleFilterValue('${fieldId}', '${val}', this.checked)"><label>${val}</label></div>`;
+            }).join('');
+        }
+
+        function toggleFilterValue(fieldId, value, checked) {
+            if (!activeFilters[fieldId]) activeFilters[fieldId] = [];
+            if (checked) {
+                if (!activeFilters[fieldId].includes(value)) activeFilters[fieldId].push(value);
+            } else {
+                activeFilters[fieldId] = activeFilters[fieldId].filter(v => v !== value);
+            }
+        }
+
+        let originalMappedData = []; // Variável para manter os dados sem filtro
+
+        function applyFilters() {
+            // Se for a primeira vez filtrando, guarda os dados originais
+            if (originalMappedData.length === 0) originalMappedData = [...mappedData];
+            
+            let filtered = [...originalMappedData];
+            
+            for (let fieldId in activeFilters) {
+                if (activeFilters[fieldId].length > 0) {
+                    filtered = filtered.filter(row => activeFilters[fieldId].includes(row[fieldId] || ''));
+                }
+            }
+            
+            mappedData = filtered;
+            currentPage = 1;
+            selectedRows.clear();
+            renderTable();
+            closePopups();
+        }
+
+        function clearFilters() {
+            if (originalMappedData.length > 0) {
+                mappedData = [...originalMappedData];
+                originalMappedData = [];
+            }
+            activeFilters = {};
+            currentPage = 1;
+            renderTable();
+            closePopups();
+        }
+
+
+
+        function applyBatchEdit() {
+            const colId = document.getElementById('batch-column-select').value;
+            let val = document.getElementById('batch-value-input').value;
+            const target = document.getElementById('batch-target-select').value;
+            const fieldDef = fields.find(f => f.id === colId);
+            if (fieldDef && fieldDef.isValue) val = formatValue(val);
+            mappedData = mappedData.map(row => {
+                if (target === 'all' || (target === 'empty' && !row[colId])) row[colId] = val;
+                return row;
+            });
+            renderTable();
+            closePopups();
+        }
+
+        function validateData() {
+            const errors = [];
+            mappedData.forEach((row, i) => {
+                fields.filter(f => f.req).forEach(f => {
+                    if (!row[f.id]) errors.push(`Linha ${i + 1}: Campo "${f.label}" obrigatório.`);
+                });
+            });
+            const container = document.getElementById('validation-results');
+            container.innerHTML = errors.length === 0 ? '<p style="color: #39FF14">✓ Tudo OK!</p>' : errors.map(e => `<p style="color: #ff3b30">${e}</p>`).join('');
+            document.getElementById('overlay-validation').style.display = 'flex';
+        }
+
+        function showLoader(percent, text) {
+            document.getElementById('overlay-loader').style.display = 'flex';
+            document.getElementById('loader-percent').textContent = `${percent}%`;
+            document.getElementById('loader-text').textContent = text;
+        }
+
+        function removeAccents(str) {
+            if (!str) return '';
+            return str.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ç/g, "c").replace(/Ç/g, "C");
+        }
+
+        function generateTXT() {
+            const sep = document.getElementById('separator-select').value;
+            showLoader(0, 'Gerando...');
+            
+            setTimeout(() => {
+                try {
+                    let content = "";
+                    const total = mappedData.length;
+                    
+                    for (let i = 0; i < total; i++) {
+                        const row = mappedData[i];
+                        const line = fields.map(f => {
+                            let val = row[f.id];
+                            if (val === undefined || val === null) val = '';
+                            
+                            let strVal = val.toString();
+                            
+                            if (f.id === 'conta_pat' && strVal.includes(' - ')) {
+                                strVal = strVal.split(' - ')[0];
+                            }
+
+                            const regex = new RegExp(sep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+                            strVal = strVal.replace(regex, '');
+                            strVal = strVal.replace(/;/g, '').replace(/,/g, '');
+
+                            return removeAccents(strVal);
+                        }).join(sep);
+                        
+                        content += line + "\r\n";
+                        
+                        if (i % 50 === 0) {
+                            const p = Math.round((i / total) * 100);
+                            document.getElementById('loader-percent').textContent = `${p}%`;
+                        }
+                    }
+
+                    const blob = new Blob([content.trim()], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'cadastro_bens.txt';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    showLoader(100, 'Pronto!');
+                    setTimeout(closePopups, 800);
+                } catch (err) {
+                    console.error(err);
+                    alert('Erro ao gerar arquivo: ' + err.message);
+                    closePopups();
+                }
+            }, 100);
+        }
+
+        function setSkin(index) {
+            const skins = ["linear-gradient(to right, #3d72b4, #525252)", "linear-gradient(to right, #19547b, #ffd89b)", "linear-gradient(to right, #99f2c8, #1f4037)", "linear-gradient(to right, #FD746C, #2C3E50)"];
+            document.body.style.background = skins[index];
+        }
+
+        initFields();
+    </script>
+</body>
+</html>
